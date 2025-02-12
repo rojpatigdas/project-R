@@ -20,7 +20,7 @@ scene.add(directionalLight);
 
 // Player (Red Cube)
 const playerGeometry = new THREE.BoxGeometry(1, 1, 1);
-const playerMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+const playerMaterial = new THREE.MeshPhongMaterial({ color: 0x51cf0e });
 const player = new THREE.Mesh(playerGeometry, playerMaterial);
 scene.add(player);
 player.position.y = 0.5;
@@ -78,7 +78,7 @@ const collectibles = [];
 
 function spawnCollectible() {
     const geometry = new THREE.SphereGeometry(0.5);
-    const material = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+    const material = new THREE.MeshPhongMaterial({ color: 0x454546 });
     const collectible = new THREE.Mesh(geometry, material);
     collectible.position.x = (Math.random() - 0.5) * 10;
     collectible.position.z = (Math.random() - 0.5) * 10;
@@ -112,10 +112,10 @@ function animate(time) {
         -Math.sin(yaw)
     ).normalize();
 
-    if (keys['w'] || keys['ArrowUp']) {
+    if (keys['s'] || keys['ArrowUp']) {
         player.position.add(forward.multiplyScalar(speed * delta));
     }
-    if (keys['s'] || keys['ArrowDown']) {
+    if (keys['w'] || keys['ArrowDown']) {
         player.position.add(forward.multiplyScalar(-speed * delta));
     }
     if (keys['a'] || keys['ArrowLeft']) {
