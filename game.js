@@ -2,9 +2,33 @@ let score = 0;
 const keys = {};
 let yaw = Math.PI / 4;
 let pitch = Math.PI / 8;
-const cameraDistance = 8;
+const cameraDistance = 0.01;
+let velocityY = 0;
+let isJumping = false;
+const gravity = -120;
+const jumpStrength = 30;
 
-// Scene setup
+// Pointer lock for mouse control
+document.body.requestPointerLock = document.body.requestPointerLock || document.body.mozRequestPointerLock;
+document.exitPointerLock = document.exitPointerLock || document.mozExitPointerLock;
+document.body.addEventListener('click', () => document.body.requestPointerLock());
+
+document.addEventListener('pointerlockchange', () => {
+    if (document.pointerLockElement) {
+        document.addEventListener('mousemove', handleMouseMove, false);
+    } else {
+        document.removeEventListener('mousemove', handleMouseMove, false);
+    }
+});
+
+function handleMouseMove(event) {
+    const sensitivity = 0.002;
+    yaw += event.movementX * sensitivity; // Moving mouse right looks right
+    pitch += event.movementY * sensitivity; // Moving mouse up looks up
+    pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch));
+    updateCamera();
+}
+
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -12,18 +36,6 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
-// Score Display
-const scoreDisplay = document.createElement('div');
-scoreDisplay.style.position = 'absolute';
-scoreDisplay.style.top = '10px';
-scoreDisplay.style.left = '10px';
-scoreDisplay.style.fontSize = '20px';
-scoreDisplay.style.color = 'white';
-scoreDisplay.style.fontFamily = 'Arial, sans-serif';
-scoreDisplay.innerHTML = `Score: ${score}`;
-document.body.appendChild(scoreDisplay);
-
-// Lighting
 const ambientLight = new THREE.AmbientLight(0x606060);
 scene.add(ambientLight);
 
@@ -32,187 +44,143 @@ directionalLight.position.set(5, 10, 5);
 directionalLight.castShadow = true;
 scene.add(directionalLight);
 
-// Maze Configuration
-const mazeSize = 21;
-const wallSize = 2;
-let maze;
+const floorGeometry = new THREE.PlaneGeometry(100, 100);
+const floorMaterial = new THREE.MeshPhongMaterial({ color: 0x8B7355 });
+const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
 
-// Floor
-//commented out for now, will add flor later
-// const floorGeometry = new THREE.PlaneGeometry(mazeSize * wallSize, mazeSize * wallSize);
-// const floorMaterial = new THREE.MeshPhongMaterial({ color: 0xaaaaaa });
-// const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-// floor.rotation.x = -Math.PI / 2;
-// floor.receiveShadow = true;
-// scene.add(floor);
-
-// Player
-const playerGeometry = new THREE.BoxGeometry(1, 1, 1);
+const playerGeometry = new THREE.BoxGeometry(1, 2.02, 1);
 const playerMaterial = new THREE.MeshPhongMaterial({ color: 0x51cf0e });
 const player = new THREE.Mesh(playerGeometry, playerMaterial);
 player.castShadow = true;
 scene.add(player);
-player.position.y = 0.5;
+player.position.set(0, 1, 0);
 
-// Camera Controls
+// Buildings and obstacles
+const buildings = [];
+function createBuilding(x, z, width, height, depth) {
+    const geometry = new THREE.BoxGeometry(width, height, depth);
+    const material = new THREE.MeshPhongMaterial({ color: 0xAAAAAA });
+    const building = new THREE.Mesh(geometry, material);
+    building.position.set(x, height / 2, z);
+    building.castShadow = true;
+    building.receiveShadow = true;
+    scene.add(building);
+    buildings.push(building);
+}
+
+// Creating buildings similar to de_dust2
+createBuilding(-10, -10, 10, 5, 10);
+createBuilding(15, 5, 15, 8, 10);
+createBuilding(-20, 20, 20, 6, 15);
+createBuilding(5, -15, 10, 5, 10);
+
+// Border walls to prevent player from going out of bounds
+const borderWalls = [];
+function createBorderWall(x, z, width, height, depth) {
+    const geometry = new THREE.BoxGeometry(width, height, depth);
+    const material = new THREE.MeshPhongMaterial({ color: 0x555555 });
+    const wall = new THREE.Mesh(geometry, material);
+    wall.position.set(x, height / 2, z);
+    wall.castShadow = true;
+    wall.receiveShadow = true;
+    scene.add(wall);
+    borderWalls.push(wall);
+}
+
+const mapSize = 50;
+createBorderWall(-mapSize, 0, 2, 10, 100);
+createBorderWall(mapSize, 0, 2, 10, 100);
+createBorderWall(0, -mapSize, 100, 10, 2);
+createBorderWall(0, mapSize, 100, 10, 2);
+
 function updateCamera() {
     camera.position.x = player.position.x + cameraDistance * Math.cos(yaw) * Math.cos(pitch);
-    camera.position.y = player.position.y + cameraDistance * Math.sin(pitch);
+    camera.position.y = player.position.y + cameraDistance * Math.sin(pitch) + 1;
     camera.position.z = player.position.z + cameraDistance * Math.sin(yaw) * Math.cos(pitch);
-    camera.lookAt(player.position);
+    camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
 }
 
-// Mouse Look
-let isMouseDown = false;
-let mouseX = 0, mouseY = 0;
-document.addEventListener('mousedown', (e) => {
-    isMouseDown = true;
-    mouseX = e.clientX;
-    mouseY = e.clientY;
-});
-document.addEventListener('mouseup', () => isMouseDown = false);
-document.addEventListener('mousemove', (e) => {
-    if (isMouseDown) {
-        const deltaX = e.clientX - mouseX;
-        const deltaY = e.clientY - mouseY;
-        yaw += deltaX * 0.005;
-        pitch -= deltaY * 0.005;
-        pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch));
-        mouseX = e.clientX;
-        mouseY = e.clientY;
-        updateCamera();
+window.addEventListener('keydown', (e) => {
+    keys[e.key.toLowerCase()] = true;
+    if (e.key === ' ' && !isJumping) {
+        velocityY = jumpStrength;
+        isJumping = true;
     }
 });
 
-// Maze Generation
-function generateMaze(rows, cols) {
-    let maze = Array(rows).fill().map(() => Array(cols).fill(1));
+window.addEventListener('keyup', (e) => {
+    delete keys[e.key.toLowerCase()];
+});
 
-    function carve(x, y) {
-        maze[y][x] = 0;
-        let directions = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-        directions = directions.sort(() => Math.random() - 0.5);
+function movePlayer(delta) {
+    const speed = 5 * delta;
+    const direction = new THREE.Vector3();
+    camera.getWorldDirection(direction);
+    direction.y = 0;
+    direction.normalize();
 
-        for (let [dx, dy] of directions) {
-            let nx = x + dx * 2, ny = y + dy * 2;
-            if (nx > 0 && ny > 0 && nx < cols - 1 && ny < rows - 1 && maze[ny][nx] === 1) {
-                maze[y + dy][x + dx] = 0;
-                carve(nx, ny);
-            }
-        }
-    }
-
-    carve(1, 1);
-    return maze;
-}
-
-// Build Maze
-function createMaze(scene, maze, wallSize) {
-    const wallGeometry = new THREE.BoxGeometry(wallSize, 2, wallSize);
-    const wallMaterial = new THREE.MeshPhongMaterial({ color: 0x222222 });
-
-    for (let y = 0; y < maze.length; y++) {
-        for (let x = 0; x < maze[y].length; x++) {
-            if (maze[y][x] === 1) {
-                const wall = new THREE.Mesh(wallGeometry, wallMaterial);
-                wall.position.set(x * wallSize, 1, y * wallSize);
-                wall.castShadow = true;
-                wall.receiveShadow = true;
-                scene.add(wall);
-            }
-        }
-    }
-}
-
-// Find Empty Spot
-function findEmptySpot(maze) {
-    let x, y;
-    do {
-        x = Math.floor(Math.random() * (maze[0].length - 2)) + 1;
-        y = Math.floor(Math.random() * (maze.length - 2)) + 1;
-    } while (maze[y][x] !== 0);
-    return { x, y };
-}
-
-// Generate Maze
-maze = generateMaze(mazeSize, mazeSize);
-createMaze(scene, maze, wallSize);
-
-// Place Player
-const playerSpawn = findEmptySpot(maze);
-player.position.set(playerSpawn.x * wallSize, 0.5, playerSpawn.y * wallSize);
-
-// Collectibles
-const collectibles = [];
-function spawnCollectible() {
-    const spawn = findEmptySpot(maze);
-    const collectible = new THREE.Mesh(
-        new THREE.SphereGeometry(0.5),
-        new THREE.MeshPhongMaterial({ color: 0xffd700 })
-    );
-    collectible.position.set(spawn.x * wallSize, 0.5, spawn.y * wallSize);
-    collectible.castShadow = true;
-    scene.add(collectible);
-    collectibles.push(collectible);
-}
-
-// Spawn Collectibles
-for (let i = 0; i < 5; i++) spawnCollectible();
-
-// Input Handling
-window.addEventListener('keydown', (e) => keys[e.key] = true);
-window.addEventListener('keyup', (e) => delete keys[e.key]);
-
-// Check for Orb Collision
-function checkCollectibles() {
-    for (let i = collectibles.length - 1; i >= 0; i--) {
-        if (player.position.distanceTo(collectibles[i].position) < 1) {
-            scene.remove(collectibles[i]); // Remove from scene
-            collectibles.splice(i, 1); // Remove from array
-            score += 1; // Increase score
-            scoreDisplay.innerHTML = `Score: ${score}`;
-            spawnCollectible(); // Spawn a new collectible
-        }
-    }
-}
-
-// Game Loop
-let delta = 0, lastTime = 0;
-function animate(time) {
-    delta = (time - lastTime) / 1000;
-    lastTime = time;
-
-    // Camera movement logic
-    const cameraDirection = new THREE.Vector3();
-    camera.getWorldDirection(cameraDirection);
-    cameraDirection.y = 0;
-    cameraDirection.normalize();
-
-    const right = new THREE.Vector3();
-    right.crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0)).normalize();
-
+    const right = new THREE.Vector3().crossVectors(direction, new THREE.Vector3(0, 1, 0)).normalize();
     let moveX = 0, moveZ = 0;
-    if (keys['w'] || keys['ArrowUp']) { moveX += cameraDirection.x; moveZ += cameraDirection.z; }
-    if (keys['s'] || keys['ArrowDown']) { moveX -= cameraDirection.x; moveZ -= cameraDirection.z; }
-    if (keys['a'] || keys['ArrowLeft']) { moveX -= right.x; moveZ -= right.z; }
-    if (keys['d'] || keys['ArrowRight']) { moveX += right.x; moveZ += right.z; }
 
-    let newX = player.position.x + moveX * 5 * delta;
-    let newZ = player.position.z + moveZ * 5 * delta;
+    if (keys['w']) {
+        moveX += direction.x * speed;
+        moveZ += direction.z * speed;
+    }
+    if (keys['s']) {
+        moveX -= direction.x * speed;
+        moveZ -= direction.z * speed;
+    }
+    if (keys['a']) {
+        moveX -= right.x * speed;
+        moveZ -= right.z * speed;
+    }
+    if (keys['d']) {
+        moveX += right.x * speed;
+        moveZ += right.z * speed;
+    }
 
-    if (maze[Math.round(newZ / wallSize)][Math.round(newX / wallSize)] === 0) {
+    let newX = player.position.x + moveX;
+    let newZ = player.position.z + moveZ;
+    let canMove = true;
+
+    for (let obstacle of [...buildings, ...borderWalls]) {
+        const bx = obstacle.position.x;
+        const bz = obstacle.position.z;
+        const bw = obstacle.geometry.parameters.width / 2;
+        const bd = obstacle.geometry.parameters.depth / 2;
+
+        if (newX > bx - bw && newX < bx + bw && newZ > bz - bd && newZ < bz + bd) {
+            canMove = false;
+            break;
+        }
+    }
+
+    if (canMove) {
         player.position.x = newX;
         player.position.z = newZ;
     }
 
-    player.position.y = 0.5;
+    player.position.y += velocityY * delta;
+    velocityY += gravity * delta;
+    if (player.position.y <= 1) {
+        player.position.y = 1;
+        isJumping = false;
+    }
+}
 
-    checkCollectibles(); // Check for orb collection
+let lastTime = 0;
+function animate(time) {
+    let delta = (time - lastTime) / 1000;
+    lastTime = time;
+    
+    movePlayer(delta);
     updateCamera();
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
 }
 
-// Start Game
 updateCamera();
 animate(0);
