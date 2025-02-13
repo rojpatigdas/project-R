@@ -116,7 +116,7 @@ window.addEventListener('keyup', (e) => {
 });
 
 function movePlayer(delta) {
-    const speed = 5 * delta;
+    const speed = 7 * delta;
     const direction = new THREE.Vector3();
     camera.getWorldDirection(direction);
     direction.y = 0;
