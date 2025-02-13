@@ -36,6 +36,17 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
+// Handle window resizing for responsiveness
+window.addEventListener('resize', () => {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    
+    renderer.setSize(width, height);
+});
+
 const ambientLight = new THREE.AmbientLight(0x606060);
 scene.add(ambientLight);
 
